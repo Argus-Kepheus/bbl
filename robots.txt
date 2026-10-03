@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://argus-kepheus.github.io/bbl/sitemap.xml

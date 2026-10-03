@@ -1,0 +1,350 @@
+import { readPreference, writePreference, readLastLocation } from "./preferences.js";
+import { prepareParallelLayout } from "./parallelLayout.js";
+import { normalizeSpeechContent, highlightSpeech } from "./wordsOfJesus.js";
+import { captureReadingPosition, restoreReadingPosition, prepareReadingFonts } from "./readingPosition.js";
+
+const LANGS = ["pt", "es", "en"];
+const DEFAULT_LOCATION = { book: "GEN", chapter: 1 };
+const SCRIPTURE_FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40];
+const DEFAULT_SCRIPTURE_FONT_SIZE = 20;
+const state = { uiLang: "pt", readLangs: ["pt"], theme: "classic", scriptureFontSize: DEFAULT_SCRIPTURE_FONT_SIZE, manifests: {}, locales: {} };
+let navigationRevision = 0;
+let renderedRoute = null;
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  home: $("home-view"), readerView: $("reader-view"), error: $("error-view"), reader: $("reader"),
+  book: $("book-select"), chapter: $("chapter-select"), language: $("language-select"), theme: $("theme-toggle"),
+  title: $("book-title"), chapterTitle: $("chapter-title"), testament: $("testament-label"),
+  ot: $("ot-books"), nt: $("nt-books"), prev: $("prev-chapter"), next: $("next-chapter"), continueBtn: $("continue-reading"),
+  parallel: $("parallel-switcher"), parallelApply: $("parallel-apply"), parallelSingle: $("parallel-single"), chapterNav: $("chapter-navigation"),
+  fontDecrease: $("font-decrease"), fontIncrease: $("font-increase"), fontReset: $("font-reset"), fontValue: $("font-size-value"), readingTools: $("reading-tools")
+};
+
+function preferredLanguage() {
+  const saved = readPreference("ak-bible-language");
+  if (LANGS.includes(saved)) return saved;
+  const browser = (navigator.language || "pt").slice(0,2).toLowerCase();
+  return LANGS.includes(browser) ? browser : "pt";
+}
+function preferredTheme() {
+  const saved = readPreference("ak-bible-theme");
+  if (["classic","classic-dark"].includes(saved)) return saved;
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "classic-dark" : "classic";
+}
+function preferredScriptureFontSize() {
+  const saved = Number(readPreference("ak-bible-scripture-font-size"));
+  return SCRIPTURE_FONT_SIZES.includes(saved) ? saved : DEFAULT_SCRIPTURE_FONT_SIZE;
+}
+function applyScriptureFontSize() {
+  document.documentElement.style.setProperty("--scripture-font-size", `${state.scriptureFontSize}px`);
+  writePreference("ak-bible-scripture-font-size", String(state.scriptureFontSize));
+  const index = SCRIPTURE_FONT_SIZES.indexOf(state.scriptureFontSize);
+  els.fontDecrease.disabled = index <= 0;
+  els.fontIncrease.disabled = index >= SCRIPTURE_FONT_SIZES.length - 1;
+  els.fontValue.textContent = `${Math.round((state.scriptureFontSize / DEFAULT_SCRIPTURE_FONT_SIZE) * 100)}%`;
+}
+function changeScriptureFontSize(delta) {
+  const index = SCRIPTURE_FONT_SIZES.indexOf(state.scriptureFontSize);
+  const next = Math.min(SCRIPTURE_FONT_SIZES.length - 1, Math.max(0, index + delta));
+  state.scriptureFontSize = SCRIPTURE_FONT_SIZES[next];
+  applyScriptureFontSize();
+}
+async function getJSON(path) {
+  const res = await fetch(path, { cache: "no-cache" });
+  if (!res.ok) throw new Error(`${res.status} ${path}`);
+  return res.json();
+}
+async function ensureAssets(lang) {
+  if (!state.locales[lang]) state.locales[lang] = await getJSON(`locales/${lang}.json`);
+  if (!state.manifests[lang]) state.manifests[lang] = await getJSON(`data/${lang}/manifest.json`);
+}
+function locale() { return state.locales[state.uiLang]; }
+function manifest(lang=state.uiLang) { return state.manifests[lang]; }
+function t(key, vars={}) {
+  let s = locale()?.[key] ?? key;
+  for (const [k,v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  return s;
+}
+function applyLocale() {
+  document.documentElement.lang = locale().langTag;
+  document.title = locale().title;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
+  document.querySelectorAll("[data-i18n-title]").forEach(el => { el.title = t(el.dataset.i18nTitle); });
+}
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  writePreference("ak-bible-theme", state.theme);
+  els.theme.setAttribute("aria-pressed", String(state.theme === "classic-dark"));
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", state.theme === "classic" ? "#FAF9F6" : "#151515");
+}
+function route() {
+  const raw = location.hash.replace(/^#/, "");
+  if (!raw || raw === "home") return { view: "home" };
+  const m = raw.match(/^read\/((?:pt|es|en)(?:\+(?:pt|es|en)){0,2})\/([1-3]?[A-Z]{2,3})\/(\d+)(?:\?ui=(pt|es|en))?$/);
+  if (!m) return { view:"home" };
+  const langs=[...new Set(m[1].split("+"))].filter(x=>LANGS.includes(x)).slice(0,3);
+  return langs.length ? { view:"reader", langs, uiLang:m[4] || langs[0], book:m[2], chapter:Number(m[3]) } : { view:"home" };
+}
+function bookByCode(code,lang=state.uiLang) { return manifest(lang)?.books.find(b => b.code === code); }
+function fillBookSelect(selected) {
+  els.book.innerHTML = "";
+  for (const b of manifest().books) {
+    const o = document.createElement("option"); o.value=b.code; o.textContent=b.name; o.selected=b.code===selected; els.book.append(o);
+  }
+}
+function fillChapterSelect(book, selected) {
+  els.chapter.innerHTML = "";
+  for (let n=1;n<=book.chapters;n++) { const o=document.createElement("option");o.value=n;o.textContent=n;o.selected=n===selected;els.chapter.append(o); }
+}
+function renderBookIndex() {
+  els.ot.innerHTML = ""; els.nt.innerHTML = "";
+  for (const b of manifest().books) {
+    const btn=document.createElement("button"); btn.className="book-link"; btn.type="button"; btn.textContent=b.name; btn.dataset.book=b.code;
+    btn.addEventListener("click",()=>navigateTo(b.code,1));
+    (b.testament === "OT" ? els.ot : els.nt).append(btn);
+  }
+}
+function setVisible(view) {
+  els.home.hidden=view!=="home"; els.readerView.hidden=view!=="reader"; els.error.hidden=view!=="error";
+  els.readingTools.hidden=view!=="reader";
+  els.chapterNav.hidden=view!=="reader";
+  document.body.classList.toggle("reading-active",view==="reader");
+}
+function routeLangSegment(langs=state.readLangs) { return langs.join("+"); }
+function navigateTo(book, chapter, langs=state.readLangs, uiLang=route().uiLang || state.uiLang) {
+  const ui=uiLang===langs[0] ? "" : `?ui=${uiLang}`;
+  location.hash=`read/${routeLangSegment(langs)}/${book}/${chapter}${ui}`;
+}
+function flattenText(node) {
+  if (typeof node === "string") return node;
+  if (!node || typeof node !== "object") return "";
+  if (node.type === "note") return "";
+  return (node.content || []).map(flattenText).join("");
+}
+function renderInline(node, parent, lang) {
+  if (typeof node === "string") { parent.append(document.createTextNode(node)); return; }
+  if (!node || typeof node !== "object") return;
+  if (node.type === "verse" || node.type === "note") return;
+  if (node.type === "char") {
+    const span=document.createElement("span"); span.className=`char-${node.marker || "generic"}`;
+    (node.content || []).forEach(x=>renderInline(x,span,lang)); parent.append(span); return;
+  }
+  (node.content || []).forEach(x=>renderInline(x,parent,lang));
+}
+function appendVerseNumber(parent,node,lang) {
+  const s=document.createElement("sup"); s.className="verse-number"; s.id=`${lang}-v-${node.number}`;
+  s.dataset.verse=String(node.number);
+  s.textContent=node.number; parent.append(s);
+}
+function renderVerseSequence(content, container, lang, extraClass="") {
+  let current=null;
+  let continuation=null;
+  for (const node of content || []) {
+    if (node && typeof node === "object" && node.type === "verse") {
+      if (node.sid) {
+        current=document.createElement("p");
+        current.className=`scripture-verse${extraClass ? ` ${extraClass}` : ""}`;
+        appendVerseNumber(current,node,lang);
+        container.append(current);
+      }
+      continue;
+    }
+    if (!current) {
+      if (!continuation) {
+        continuation=document.createElement("p");
+        continuation.className=`scripture-continuation${extraClass ? ` ${extraClass}` : ""}`;
+        container.append(continuation);
+      }
+      renderInline(node,continuation,lang);
+    } else {
+      renderInline(node,current,lang);
+    }
+  }
+  for (const p of [...container.querySelectorAll(":scope > .scripture-verse, :scope > .scripture-continuation")]) {
+    if (!p.textContent.trim() && !p.querySelector(".verse-number")) p.remove();
+  }
+}
+function renderNode(node, container, chapterNumber, lang) {
+  if (!node || typeof node !== "object") return;
+  if (node.type === "chapter" || node.type === "book") return;
+  if (node.type === "para") {
+    const marker=node.marker || "p";
+    if (/^(s|ms|mr)/.test(marker)) {
+      const h=document.createElement("h2");h.className="section-heading";h.textContent=(node.content || []).map(flattenText).join("").trim();
+      if (h.textContent) container.append(h); return;
+    }
+    if (/^q/.test(marker)) {
+      const d=document.createElement("div"); d.className=`poetry ${marker}`;
+      renderVerseSequence(node.content,d,lang,"poetry-line");
+      if (d.textContent.trim()) container.append(d); return;
+    }
+    if (["h","toc1","toc2","toc3","mt1","mt2"].includes(marker)) return;
+    const block=document.createElement("div"); block.className=`scripture-prose para-${marker}`;
+    renderVerseSequence(node.content,block,lang);
+    if (block.textContent.trim() || block.querySelector(".verse-number")) container.append(block);
+    return;
+  }
+  if (node.type === "table") {
+    const block=document.createElement("div"); block.className="table-block"; block.textContent=flattenText(node); if(block.textContent.trim()) container.append(block);
+  }
+}
+async function setUiLanguage(lang) {
+  await ensureAssets(lang);
+  applyUiLanguage(lang);
+}
+function applyUiLanguage(lang) {
+  state.uiLang=lang; writePreference("ak-bible-language",lang); els.language.value=lang;
+  applyLocale(); renderBookIndex();
+}
+function setParallelChecks(langs) {
+  document.querySelectorAll('input[name="parallel-language"]').forEach(cb=>{ cb.checked=langs.includes(cb.value); });
+  updateParallelSelection();
+}
+function updateParallelSelection() {
+  els.parallelApply.disabled=!document.querySelector('input[name="parallel-language"]:checked');
+}
+function selectedParallelLanguages() {
+  const checked=[...document.querySelectorAll('input[name="parallel-language"]:checked')].map(x=>x.value);
+  // Keep existing column order; append newly selected languages in menu order.
+  return [...state.readLangs.filter(lang=>checked.includes(lang)),...checked.filter(lang=>!state.readLangs.includes(lang))];
+}
+async function showHome(position=null) {
+  state.readLangs=[state.uiLang]; setParallelChecks(state.readLangs); setVisible("home");
+  fillBookSelect(manifest().books[0]?.code); fillChapterSelect(manifest().books[0],1);
+  const last=readLastLocation(state.uiLang,manifest().books);
+  els.continueBtn.textContent = last ? t("continueReading") : t("startReading");
+  els.continueBtn.onclick=()=>navigateTo(last?.book||DEFAULT_LOCATION.book,last?.chapter||DEFAULT_LOCATION.chapter,[state.uiLang]);
+  renderedRoute={view:"home"};
+  if(position) restoreReadingPosition(els.home,position);
+  else window.scrollTo({top:0,behavior:"instant"});
+}
+function neighboring(book,chapter,delta) {
+  const books=manifest().books; let bi=books.findIndex(b=>b.code===book); if(bi<0)return null;
+  let ch=chapter+delta;
+  if(ch>=1 && ch<=books[bi].chapters)return {book,chapter:ch};
+  bi+=delta>0?1:-1; if(bi<0||bi>=books.length)return null;
+  const nb=books[bi]; return {book:nb.code,chapter:delta>0?1:nb.chapters};
+}
+async function renderLanguageColumn(lang,bookCode,chapter) {
+  await ensureAssets(lang);
+  const b=bookByCode(bookCode,lang);
+  const article=document.createElement("article"); article.className="scripture-column"; article.dataset.language=lang;
+  article.lang=state.locales[lang].langTag;
+  const header=document.createElement("header"); header.className="scripture-column-header";
+  const label=document.createElement("span"); label.className="scripture-lang-badge"; label.textContent=lang.toUpperCase();
+  const title=document.createElement("strong"); title.textContent=b ? `${b.name} ${chapter}` : `${bookCode} ${chapter}`;
+  header.append(label,title); article.append(header);
+  if(!b || chapter<1 || chapter>b.chapters) {
+    const p=document.createElement("p"); p.textContent=state.locales[lang]?.loadErrorCopy || t("loadErrorCopy"); article.append(p); return article;
+  }
+  const data=await getJSON(`data/${lang}/books/${bookCode}/${chapter}.json`);
+  const body=document.createElement("div"); body.className="scripture-body";
+  for(const node of normalizeSpeechContent(data.content,bookCode)) renderNode(node,body,chapter,lang);
+  highlightSpeech(body,bookCode,data.speech);
+  article.append(body);
+  return article;
+}
+async function showReader(bookCode,chapter,langs,uiLang,revision) {
+  const readLangs=[...new Set(langs)].filter(x=>LANGS.includes(x)).slice(0,3);
+  if(!readLangs.length) readLangs.push(state.uiLang);
+  try {
+    await Promise.all([...new Set([...readLangs,uiLang])].map(ensureAssets));
+    if(revision!==navigationRevision) return;
+    const book=bookByCode(bookCode,uiLang);
+    if(!book || chapter<1 || chapter>book.chapters) { renderedRoute=null; setVisible("error"); return; }
+    const preserve=renderedRoute?.view==="reader" && renderedRoute.book===bookCode && renderedRoute.chapter===chapter;
+    const [cols]=await Promise.all([
+      Promise.all(readLangs.map(lang=>renderLanguageColumn(lang,bookCode,chapter))),
+      preserve ? prepareReadingFonts(state.scriptureFontSize) : Promise.resolve()
+    ]);
+    if(revision!==navigationRevision) return;
+    // Capture immediately before replacement, including any reading/scrolling
+    // performed while the next translation was loading.
+    const position=preserve ? captureReadingPosition(els.reader,readLangs[0]) : null;
+    state.readLangs=readLangs;
+    applyUiLanguage(uiLang);
+    fillBookSelect(bookCode); fillChapterSelect(book,chapter); setParallelChecks(readLangs);
+    const parallel=cols.length>1;
+    els.reader.classList.toggle("parallel-aligned",parallel);
+    els.reader.style.setProperty("--parallel-rows",String(parallel ? prepareParallelLayout(cols) : 1));
+    els.reader.tabIndex=parallel ? 0 : -1;
+    if(parallel) {
+      els.reader.setAttribute("role","region");
+      els.reader.setAttribute("aria-label",t("readingLanguages"));
+    } else {
+      els.reader.removeAttribute("role");
+      els.reader.removeAttribute("aria-label");
+    }
+    els.reader.replaceChildren(...cols); els.reader.dataset.columns=String(cols.length);
+    els.readerView.classList.toggle("parallel-active",cols.length>1);
+    els.title.textContent=book.name; els.chapterTitle.textContent=t("chapterLabel",{n:chapter}); els.testament.textContent=book.testament==="OT"?t("oldTestament"):t("newTestament");
+    const prev=neighboring(bookCode,chapter,-1), next=neighboring(bookCode,chapter,1);
+    els.prev.disabled=!prev; els.next.disabled=!next; els.prev.onclick=()=>prev&&navigateTo(prev.book,prev.chapter); els.next.onclick=()=>next&&navigateTo(next.book,next.chapter);
+    writePreference(`ak-bible-last-${state.uiLang}`,JSON.stringify({book:bookCode,chapter,langs:state.readLangs}));
+    writePreference("ak-bible-parallel-languages",JSON.stringify(state.readLangs));
+    setVisible("reader"); renderedRoute={view:"reader",book:bookCode,chapter};
+    if(position) restoreReadingPosition(els.reader,position);
+    else { els.reader.focus({preventScroll:true}); window.scrollTo({top:0,behavior:"instant"}); }
+  } catch(err) {
+    if(revision!==navigationRevision) return;
+    console.error(err); renderedRoute=null; setVisible("error");
+  }
+}
+async function handleRoute() {
+  const revision=++navigationRevision;
+  const r=route();
+  if(r.view==="reader") await showReader(r.book,r.chapter,r.langs,r.uiLang,revision); else await showHome();
+}
+async function init() {
+  state.theme=preferredTheme(); applyTheme();
+  state.scriptureFontSize=preferredScriptureFontSize(); applyScriptureFontSize();
+  await setUiLanguage(preferredLanguage());
+  els.language.addEventListener("change",async()=>{
+    const lang=els.language.value; const r=route();
+    if(r.view==="reader") {
+      const langs=r.langs.length===1 ? [lang] : r.langs;
+      navigateTo(r.book,r.chapter,langs,lang);
+    } else {
+      const revision=++navigationRevision;
+      await ensureAssets(lang);
+      if(revision!==navigationRevision) return;
+      const position=captureReadingPosition(els.home);
+      applyUiLanguage(lang); await showHome(position);
+    }
+  });
+  els.theme.addEventListener("click",()=>{state.theme=state.theme==="classic"?"classic-dark":"classic";applyTheme();});
+  els.fontDecrease.addEventListener("click",()=>changeScriptureFontSize(-1));
+  els.fontIncrease.addEventListener("click",()=>changeScriptureFontSize(1));
+  els.fontReset.addEventListener("click",()=>{state.scriptureFontSize=DEFAULT_SCRIPTURE_FONT_SIZE;applyScriptureFontSize();});
+  els.book.addEventListener("change",()=>navigateTo(els.book.value,1));
+  els.chapter.addEventListener("change",()=>navigateTo(els.book.value,Number(els.chapter.value)));
+  els.parallel.addEventListener("change",updateParallelSelection);
+  els.parallelApply.addEventListener("click",()=>{
+    const r=route(); const langs=selectedParallelLanguages();
+    if(!langs.length) return;
+    els.parallel.open=false;
+    if(r.view==="reader") navigateTo(r.book,r.chapter,langs);
+    else {
+      const last=readLastLocation(state.uiLang,manifest().books) || DEFAULT_LOCATION;
+      navigateTo(last.book,last.chapter,langs);
+    }
+  });
+  els.parallelSingle.addEventListener("click",()=>{
+    const r=route(); state.readLangs=[state.uiLang]; setParallelChecks(state.readLangs); els.parallel.open=false;
+    if(r.view==="reader") navigateTo(r.book,r.chapter,state.readLangs);
+  });
+  document.addEventListener("keydown",event=>{
+    if(event.key==="Escape" && els.parallel.open) {
+      els.parallel.open=false;
+      els.parallel.querySelector("summary").focus({preventScroll:true});
+    }
+  });
+  document.addEventListener("click",event=>{
+    if(!els.parallel.contains(event.target)) els.parallel.open=false;
+  });
+  addEventListener("hashchange",handleRoute);
+  await handleRoute();
+}
+init().catch(err=>{console.error(err);setVisible("error");});

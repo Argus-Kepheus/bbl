@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="classic">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Leitura bíblica — Bíblia Argus Kepheus em português, español e English.">
+  <meta name="theme-color" content="#FAF9F6">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Bíblia Argus Kepheus">
+  <meta property="og:description" content="Leitura bíblica em português, español e English.">
+  <meta property="og:url" content="https://argus-kepheus.github.io/bbl/">
+  <link rel="canonical" href="https://argus-kepheus.github.io/bbl/">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="assets/styles.css">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self';">
+  <title>Bíblia Argus Kepheus</title>
+</head>
+<body>
+  <a class="skip-link" href="#reader" data-i18n="skip">Pular para a leitura</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#home" data-i18n-aria="returnHome" aria-label="Voltar ao índice">
+        <span class="brand-title" data-i18n="brand">Bíblia Argus Kepheus</span>
+      </a>
+      <nav class="reader-controls" aria-label="Bible navigation" data-i18n-aria="readerNav">
+        <label class="control-group">
+          <span class="sr-only" data-i18n="book">Livro</span>
+          <select id="book-select" data-i18n-aria="book" aria-label="Livro"></select>
+        </label>
+        <label class="control-group chapter-control">
+          <span class="sr-only" data-i18n="chapter">Capítulo</span>
+          <select id="chapter-select" data-i18n-aria="chapter" aria-label="Capítulo"></select>
+        </label>
+      </nav>
+      <div class="site-switchers">
+        <label class="switcher-label">
+          <span class="sr-only" data-i18n="language">Idioma</span>
+          <select id="language-select" class="compact-select" data-i18n-aria="language" aria-label="Idioma">
+            <option value="pt">PT</option>
+            <option value="es">ES</option>
+            <option value="en">EN</option>
+          </select>
+        </label>
+        <details id="parallel-switcher" class="parallel-switcher">
+          <summary class="parallel-summary" data-i18n="parallelReading">Paralela</summary>
+          <div class="parallel-panel">
+            <p class="parallel-panel-title" data-i18n="readingLanguages">Textos em paralelo</p>
+            <label><input type="checkbox" name="parallel-language" value="pt"> <span>PT</span></label>
+            <label><input type="checkbox" name="parallel-language" value="es"> <span>ES</span></label>
+            <label><input type="checkbox" name="parallel-language" value="en"> <span>EN</span></label>
+            <p class="parallel-help" data-i18n="parallelHint">Escolha os idiomas dos textos independentemente da interface. Selecione ao menos um; dois ou três ativam a leitura paralela.</p>
+            <div class="parallel-actions">
+              <button id="parallel-single" type="button" class="small-button" data-i18n="singleReading">Leitura simples</button>
+              <button id="parallel-apply" type="button" class="small-button primary-small" data-i18n="apply">Aplicar</button>
+            </div>
+          </div>
+        </details>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" data-i18n-aria="toggleTheme" data-i18n-title="toggleTheme" aria-label="Alternar modo escuro" title="Alternar modo escuro">
+          <img class="theme-floppy theme-floppy-on-light" src="assets/dark-theme-floppy-disk.png" alt="" width="34" height="34">
+          <img class="theme-floppy theme-floppy-on-dark" src="assets/light-theme-floppy-disk.png" alt="" width="34" height="34">
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section id="home-view" class="home-view" hidden>
+      <div class="hero">
+        <p class="eyebrow">Editora Argus Kepheus</p>
+        <button id="continue-reading" class="primary-button" type="button" data-i18n="startReading">Começar a ler</button>
+      </div>
+      <div class="book-index" aria-labelledby="book-index-title">
+        <h1 id="book-index-title" data-i18n="books">Livros</h1>
+        <div class="testament-grid">
+          <section>
+            <h3 data-i18n="oldTestament">Antigo Testamento</h3>
+            <div id="ot-books" class="book-grid"></div>
+          </section>
+          <section>
+            <h3 data-i18n="newTestament">Novo Testamento</h3>
+            <div id="nt-books" class="book-grid"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="reader-view" class="reader-view" hidden>
+      <div class="reading-shell">
+        <div class="reader-heading">
+          <div>
+            <p id="testament-label" class="eyebrow"></p>
+            <h1 id="book-title"></h1>
+          </div>
+          <p id="chapter-title" class="chapter-title"></p>
+        </div>
+        <div id="reader" class="scripture-grid" tabindex="-1" aria-live="polite"></div>
+        <div class="chapter-contents">
+          <a href="#home" class="contents-link" data-i18n="contents">Índice</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="error-view" class="error-view" hidden>
+      <h1 data-i18n="loadErrorTitle">Não foi possível carregar este capítulo.</h1>
+      <p data-i18n="loadErrorCopy">Verifique os arquivos do site e tente novamente.</p>
+      <a href="#home" data-i18n="returnHome">Voltar ao índice</a>
+    </section>
+  </main>
+
+  <nav id="chapter-navigation" class="chapter-nav" aria-label="Chapter navigation" data-i18n-aria="chapterNav" hidden>
+    <button id="prev-chapter" type="button" class="chapter-button" aria-controls="reader"><span aria-hidden="true">←</span> <span data-i18n="previous">Anterior</span></button>
+    <button id="next-chapter" type="button" class="chapter-button" aria-controls="reader"><span data-i18n="next">Seguinte</span> <span aria-hidden="true">→</span></button>
+  </nav>
+
+  <div id="reading-tools" class="scripture-font-control" role="group" data-i18n-aria="scriptureFontSize" aria-label="Tamanho do texto bíblico" hidden>
+    <button id="font-decrease" class="font-size-button" type="button" data-i18n-aria="decreaseFont" data-i18n-title="decreaseFont" aria-label="Diminuir texto bíblico" title="Diminuir texto bíblico" aria-controls="reader">A−</button>
+    <button id="font-reset" class="font-size-value" type="button" data-i18n-aria="resetFont" data-i18n-title="resetFont" aria-label="Restaurar tamanho padrão" title="Restaurar tamanho padrão" aria-controls="reader"><span id="font-size-value" aria-live="polite" aria-atomic="true">100%</span></button>
+    <button id="font-increase" class="font-size-button" type="button" data-i18n-aria="increaseFont" data-i18n-title="increaseFont" aria-label="Aumentar texto bíblico" title="Aumentar texto bíblico" aria-controls="reader">A+</button>
+  </div>
+
+  <footer class="site-footer">
+    <p><span data-i18n="footerLine">Leitura bíblica.</span> <span aria-hidden="true">·</span> <span data-i18n="revision">Edição Argus Kepheus, revisão 0.</span></p>
+  </footer>
+  <script type="module" src="assets/app.js"></script>
+</body>
+</html>

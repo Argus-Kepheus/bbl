@@ -1,0 +1,10 @@
+{
+  "name": "Bíblia Argus Kepheus",
+  "short_name": "AK Bible",
+  "start_url": "./#home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F1ED",
+  "theme_color": "#FAF9F6",
+  "lang": "pt-BR"
+}
