@@ -1,7 +1,6 @@
 {
   "langTag": "es",
   "title": "Biblia Argus Kepheus",
-  "brand": "Biblia Argus Kepheus",
   "skip": "Saltar a la lectura",
   "readerNav": "Navegación bíblica",
   "chapterNav": "Navegación entre capítulos",
@@ -21,8 +20,6 @@
   "previous": "Anterior",
   "next": "Siguiente",
   "contents": "Índice",
-  "footerLine": "Lectura bíblica.",
-  "revision": "Edición Argus Kepheus, revisión 0.",
   "loadErrorTitle": "No fue posible cargar este capítulo.",
   "loadErrorCopy": "Comprueba los archivos del sitio e inténtalo de nuevo.",
   "returnHome": "Volver al índice",

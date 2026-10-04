@@ -1,7 +1,6 @@
 {
   "langTag": "en",
   "title": "Argus Kepheus Bible",
-  "brand": "Argus Kepheus Bible",
   "skip": "Skip to reading",
   "readerNav": "Bible navigation",
   "chapterNav": "Chapter navigation",
@@ -21,8 +20,6 @@
   "previous": "Previous",
   "next": "Next",
   "contents": "Contents",
-  "footerLine": "Bible reading.",
-  "revision": "Argus Kepheus edition, revision 0.",
   "loadErrorTitle": "This chapter could not be loaded.",
   "loadErrorCopy": "Check the site files and try again.",
   "returnHome": "Return to contents",
