@@ -1,12 +1,15 @@
 import { readPreference, writePreference, readLastLocation } from "./preferences.js";
+import { createJSONLoader } from "./jsonCache.js";
 import { prepareParallelLayout } from "./parallelLayout.js";
 import { normalizeSpeechContent, highlightSpeech } from "./wordsOfJesus.js";
 import { captureReadingPosition, restoreReadingPosition, prepareReadingFonts } from "./readingPosition.js";
+import { buildReadHash, parseRoute } from "./routing.js";
 
 const LANGS = ["pt", "es", "en"];
 const DEFAULT_LOCATION = { book: "GEN", chapter: 1 };
-const SCRIPTURE_FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40];
+const MIN_SCRIPTURE_FONT_SIZE = 10;
 const DEFAULT_SCRIPTURE_FONT_SIZE = 20;
+const MAX_SCRIPTURE_FONT_SIZE = 40;
 const state = { uiLang: "pt", readLangs: ["pt"], theme: "classic", scriptureFontSize: DEFAULT_SCRIPTURE_FONT_SIZE, manifests: {}, locales: {} };
 let navigationRevision = 0;
 let renderedRoute = null;
@@ -18,7 +21,7 @@ const els = {
   title: $("book-title"), chapterTitle: $("chapter-title"), testament: $("testament-label"),
   ot: $("ot-books"), nt: $("nt-books"), prev: $("prev-chapter"), next: $("next-chapter"), continueBtn: $("continue-reading"),
   parallel: $("parallel-switcher"), parallelApply: $("parallel-apply"), parallelSingle: $("parallel-single"), chapterNav: $("chapter-navigation"),
-  fontDecrease: $("font-decrease"), fontIncrease: $("font-increase"), fontReset: $("font-reset"), fontValue: $("font-size-value"), readingTools: $("reading-tools")
+  fontSlider: $("font-size-slider"), readingTools: $("reading-tools")
 };
 
 function preferredLanguage() {
@@ -34,27 +37,27 @@ function preferredTheme() {
 }
 function preferredScriptureFontSize() {
   const saved = Number(readPreference("ak-bible-scripture-font-size"));
-  return SCRIPTURE_FONT_SIZES.includes(saved) ? saved : DEFAULT_SCRIPTURE_FONT_SIZE;
+  return Number.isFinite(saved) && saved >= MIN_SCRIPTURE_FONT_SIZE && saved <= MAX_SCRIPTURE_FONT_SIZE
+    ? saved : DEFAULT_SCRIPTURE_FONT_SIZE;
+}
+function sliderValueFromFontSize(size) {
+  return size <= DEFAULT_SCRIPTURE_FONT_SIZE
+    ? Math.round((size - DEFAULT_SCRIPTURE_FONT_SIZE) * 10)
+    : Math.round((size - DEFAULT_SCRIPTURE_FONT_SIZE) * 5);
+}
+function fontSizeFromSlider(value) {
+  const offset = Number(value);
+  return offset <= 0
+    ? DEFAULT_SCRIPTURE_FONT_SIZE + offset / 10
+    : DEFAULT_SCRIPTURE_FONT_SIZE + offset / 5;
 }
 function applyScriptureFontSize() {
   document.documentElement.style.setProperty("--scripture-font-size", `${state.scriptureFontSize}px`);
   writePreference("ak-bible-scripture-font-size", String(state.scriptureFontSize));
-  const index = SCRIPTURE_FONT_SIZES.indexOf(state.scriptureFontSize);
-  els.fontDecrease.disabled = index <= 0;
-  els.fontIncrease.disabled = index >= SCRIPTURE_FONT_SIZES.length - 1;
-  els.fontValue.textContent = `${Math.round((state.scriptureFontSize / DEFAULT_SCRIPTURE_FONT_SIZE) * 100)}%`;
+  els.fontSlider.value = String(sliderValueFromFontSize(state.scriptureFontSize));
+  els.fontSlider.setAttribute("aria-valuetext", `${state.scriptureFontSize}px`);
 }
-function changeScriptureFontSize(delta) {
-  const index = SCRIPTURE_FONT_SIZES.indexOf(state.scriptureFontSize);
-  const next = Math.min(SCRIPTURE_FONT_SIZES.length - 1, Math.max(0, index + delta));
-  state.scriptureFontSize = SCRIPTURE_FONT_SIZES[next];
-  applyScriptureFontSize();
-}
-async function getJSON(path) {
-  const res = await fetch(path, { cache: "no-cache" });
-  if (!res.ok) throw new Error(`${res.status} ${path}`);
-  return res.json();
-}
+const getJSON = createJSONLoader();
 async function ensureAssets(lang) {
   if (!state.locales[lang]) state.locales[lang] = await getJSON(`locales/${lang}.json`);
   if (!state.manifests[lang]) state.manifests[lang] = await getJSON(`data/${lang}/manifest.json`);
@@ -80,12 +83,7 @@ function applyTheme() {
   document.querySelector('meta[name="theme-color"]').setAttribute("content", state.theme === "classic" ? "#FAF9F6" : "#151515");
 }
 function route() {
-  const raw = location.hash.replace(/^#/, "");
-  if (!raw || raw === "home") return { view: "home" };
-  const m = raw.match(/^read\/((?:pt|es|en)(?:\+(?:pt|es|en)){0,2})\/([1-3]?[A-Z]{2,3})\/(\d+)(?:\?ui=(pt|es|en))?$/);
-  if (!m) return { view:"home" };
-  const langs=[...new Set(m[1].split("+"))].filter(x=>LANGS.includes(x)).slice(0,3);
-  return langs.length ? { view:"reader", langs, uiLang:m[4] || langs[0], book:m[2], chapter:Number(m[3]) } : { view:"home" };
+  return parseRoute(location.hash);
 }
 function bookByCode(code,lang=state.uiLang) { return manifest(lang)?.books.find(b => b.code === code); }
 function fillBookSelect(selected) {
@@ -112,10 +110,8 @@ function setVisible(view) {
   els.chapterNav.hidden=view!=="reader";
   document.body.classList.toggle("reading-active",view==="reader");
 }
-function routeLangSegment(langs=state.readLangs) { return langs.join("+"); }
 function navigateTo(book, chapter, langs=state.readLangs, uiLang=route().uiLang || state.uiLang) {
-  const ui=uiLang===langs[0] ? "" : `?ui=${uiLang}`;
-  location.hash=`read/${routeLangSegment(langs)}/${book}/${chapter}${ui}`;
+  location.hash=buildReadHash(langs,book,chapter,uiLang);
 }
 function flattenText(node) {
   if (typeof node === "string") return node;
@@ -315,9 +311,10 @@ async function init() {
     }
   });
   els.theme.addEventListener("click",()=>{state.theme=state.theme==="classic"?"classic-dark":"classic";applyTheme();});
-  els.fontDecrease.addEventListener("click",()=>changeScriptureFontSize(-1));
-  els.fontIncrease.addEventListener("click",()=>changeScriptureFontSize(1));
-  els.fontReset.addEventListener("click",()=>{state.scriptureFontSize=DEFAULT_SCRIPTURE_FONT_SIZE;applyScriptureFontSize();});
+  els.fontSlider.addEventListener("input",()=>{
+    state.scriptureFontSize=fontSizeFromSlider(els.fontSlider.value);
+    applyScriptureFontSize();
+  });
   els.book.addEventListener("change",()=>navigateTo(els.book.value,1));
   els.chapter.addEventListener("change",()=>navigateTo(els.book.value,Number(els.chapter.value)));
   els.parallel.addEventListener("change",updateParallelSelection);

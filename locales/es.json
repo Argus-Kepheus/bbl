@@ -32,8 +32,5 @@
   "parallelHint": "Elige los idiomas de los textos independientemente de la interfaz. Selecciona al menos uno; dos o tres activan la lectura paralela.",
   "singleReading": "Lectura simple",
   "apply": "Aplicar",
-  "scriptureFontSize": "Tamaño del texto bíblico",
-  "decreaseFont": "Reducir texto bíblico",
-  "resetFont": "Restablecer tamaño predeterminado",
-  "increaseFont": "Aumentar texto bíblico"
+  "scriptureFontSize": "Tamaño del texto bíblico"
 }

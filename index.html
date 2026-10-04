@@ -109,14 +109,16 @@
   </main>
 
   <nav id="chapter-navigation" class="chapter-nav" aria-label="Chapter navigation" data-i18n-aria="chapterNav" hidden>
-    <button id="prev-chapter" type="button" class="chapter-button" aria-controls="reader"><span aria-hidden="true">←</span> <span data-i18n="previous">Anterior</span></button>
-    <button id="next-chapter" type="button" class="chapter-button" aria-controls="reader"><span data-i18n="next">Seguinte</span> <span aria-hidden="true">→</span></button>
+    <button id="prev-chapter" type="button" class="chapter-button" data-i18n-aria="previous" data-i18n-title="previous" aria-label="Anterior" title="Anterior" aria-controls="reader"><span class="chapter-icon" aria-hidden="true">◄</span></button>
+    <button id="next-chapter" type="button" class="chapter-button" data-i18n-aria="next" data-i18n-title="next" aria-label="Seguinte" title="Seguinte" aria-controls="reader"><span class="chapter-icon" aria-hidden="true">►</span></button>
   </nav>
 
-  <div id="reading-tools" class="scripture-font-control" role="group" data-i18n-aria="scriptureFontSize" aria-label="Tamanho do texto bíblico" hidden>
-    <button id="font-decrease" class="font-size-button" type="button" data-i18n-aria="decreaseFont" data-i18n-title="decreaseFont" aria-label="Diminuir texto bíblico" title="Diminuir texto bíblico" aria-controls="reader">A−</button>
-    <button id="font-reset" class="font-size-value" type="button" data-i18n-aria="resetFont" data-i18n-title="resetFont" aria-label="Restaurar tamanho padrão" title="Restaurar tamanho padrão" aria-controls="reader"><span id="font-size-value" aria-live="polite" aria-atomic="true">100%</span></button>
-    <button id="font-increase" class="font-size-button" type="button" data-i18n-aria="increaseFont" data-i18n-title="increaseFont" aria-label="Aumentar texto bíblico" title="Aumentar texto bíblico" aria-controls="reader">A+</button>
+  <div id="reading-tools" class="scripture-font-control" hidden>
+    <span class="font-range-mark" aria-hidden="true">−</span>
+    <input id="font-size-slider" class="font-size-slider" type="range" min="-100" max="100" step="10" value="0"
+      data-i18n-aria="scriptureFontSize" data-i18n-title="scriptureFontSize"
+      aria-label="Tamanho do texto bíblico" aria-valuetext="20px" title="Tamanho do texto bíblico" aria-controls="reader">
+    <span class="font-range-mark" aria-hidden="true">+</span>
   </div>
 
   <footer class="site-footer">

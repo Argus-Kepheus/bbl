@@ -32,8 +32,5 @@
   "parallelHint": "Choose the text languages independently of the interface. Select at least one; two or three enable parallel reading.",
   "singleReading": "Single reading",
   "apply": "Apply",
-  "scriptureFontSize": "Bible text size",
-  "decreaseFont": "Decrease Bible text size",
-  "resetFont": "Reset Bible text size",
-  "increaseFont": "Increase Bible text size"
+  "scriptureFontSize": "Bible text size"
 }
