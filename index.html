@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Leitura bíblica — Bíblia Argus Kepheus em português, español e English.">
+  <meta name="description" content="Leitura bíblica multilíngue — Bíblia Argus Kepheus.">
   <meta name="theme-color" content="#FAF9F6">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Bíblia Argus Kepheus">
   <meta property="og:site_name" content="Bíblia Argus Kepheus">
-  <meta property="og:description" content="Leitura bíblica em português, español e English.">
+  <meta property="og:description" content="Leitura bíblica multilíngue — Bíblia Argus Kepheus.">
   <meta property="og:url" content="https://bbl.arguskepheus.com.br/">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:image" content="https://bbl.arguskepheus.com.br/og-ichthys-v2.png">
@@ -19,7 +19,7 @@
   <meta property="og:image:alt" content="Disquete preto com símbolo Ichthys.">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Bíblia Argus Kepheus">
-  <meta name="twitter:description" content="Leitura bíblica em português, español e English.">
+  <meta name="twitter:description" content="Leitura bíblica multilíngue — Bíblia Argus Kepheus.">
   <meta name="twitter:image" content="https://bbl.arguskepheus.com.br/og-ichthys-v2.png">
   <meta name="twitter:image:alt" content="Disquete preto com símbolo Ichthys.">
   <link rel="canonical" href="https://bbl.arguskepheus.com.br/">
@@ -30,7 +30,7 @@
   <title>Bíblia Argus Kepheus</title>
 </head>
 <body>
-  <a class="skip-link" href="#reader" data-i18n="skip">Pular para a leitura</a>
+  <a id="skip-link" class="skip-link" href="#main-content" data-i18n="skip">Pular para o conteúdo principal</a>
   <header class="site-header">
     <div class="header-inner">
       <nav class="reader-controls" aria-label="Bible navigation" data-i18n-aria="readerNav">
@@ -46,20 +46,16 @@
       <div class="site-switchers">
         <label class="switcher-label">
           <span class="sr-only" data-i18n="language">Idioma</span>
-          <select id="language-select" class="compact-select" data-i18n-aria="language" aria-label="Idioma">
-            <option value="pt">PT</option>
-            <option value="es">ES</option>
-            <option value="en">EN</option>
-          </select>
+          <select id="language-select" class="compact-select" data-i18n-aria="language" aria-label="Idioma"></select>
         </label>
         <details id="parallel-switcher" class="parallel-switcher">
           <summary class="parallel-summary" data-i18n="parallelReading">Paralela</summary>
           <div class="parallel-panel">
-            <p class="parallel-panel-title" data-i18n="readingLanguages">Textos em paralelo</p>
-            <label><input type="checkbox" name="parallel-language" value="pt"> <span>PT</span></label>
-            <label><input type="checkbox" name="parallel-language" value="es"> <span>ES</span></label>
-            <label><input type="checkbox" name="parallel-language" value="en"> <span>EN</span></label>
-            <p class="parallel-help" data-i18n="parallelHint">Escolha os idiomas dos textos independentemente da interface. Selecione ao menos um; dois ou três ativam a leitura paralela.</p>
+            <fieldset class="parallel-language-group" aria-describedby="parallel-help">
+              <legend class="parallel-panel-title" data-i18n="readingLanguages">Textos em paralelo</legend>
+              <div id="parallel-language-options"></div>
+            </fieldset>
+            <p id="parallel-help" class="parallel-help" data-i18n="parallelHint">Escolha os idiomas dos textos independentemente da interface. Selecione ao menos um; dois ou três ativam a leitura paralela.</p>
             <div class="parallel-actions">
               <button id="parallel-single" type="button" class="small-button" data-i18n="singleReading">Leitura simples</button>
               <button id="parallel-apply" type="button" class="small-button primary-small" data-i18n="apply">Aplicar</button>
@@ -74,7 +70,7 @@
     </div>
   </header>
 
-  <main id="main-content">
+  <main id="main-content" tabindex="-1">
     <section id="home-view" class="home-view" hidden>
       <div class="hero">
         <p class="eyebrow">Editora Argus Kepheus</p>
@@ -84,11 +80,11 @@
         <h1 id="book-index-title" data-i18n="books">Livros</h1>
         <div class="testament-grid">
           <section>
-            <h3 data-i18n="oldTestament">Antigo Testamento</h3>
+            <h2 data-i18n="oldTestament">Antigo Testamento</h2>
             <div id="ot-books" class="book-grid"></div>
           </section>
           <section>
-            <h3 data-i18n="newTestament">Novo Testamento</h3>
+            <h2 data-i18n="newTestament">Novo Testamento</h2>
             <div id="nt-books" class="book-grid"></div>
           </section>
         </div>
@@ -104,7 +100,7 @@
           </div>
           <p id="chapter-title" class="chapter-title"></p>
         </div>
-        <div id="reader" class="scripture-grid" tabindex="-1" aria-live="polite"></div>
+        <div id="reader" class="scripture-grid" tabindex="-1"></div>
         <div class="chapter-contents">
           <a href="#home" class="contents-link" data-i18n="contents">Índice</a>
         </div>
@@ -132,7 +128,7 @@
   </div>
 
   <footer class="site-footer">
-    <p>Argus Kepheus Bible - 1.0</p>
+    <p><a href="https://www.arguskepheus.com.br/#home">Argus Kepheus</a> Bible · Web v01</p>
   </footer>
   <script type="module" src="assets/app.js"></script>
 </body>

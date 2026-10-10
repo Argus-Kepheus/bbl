@@ -87,7 +87,8 @@ button, select { font-family: inherit; }
 .parallel-summary::-webkit-details-marker { display:none; }
 .parallel-switcher[open] .parallel-summary, .parallel-summary:hover { background:var(--surface-muted); }
 .parallel-panel { position:absolute; z-index:300; right:0; top:calc(100% + .45rem); width:min(22rem, calc(100vw - 2rem)); max-height: calc(100dvh - 9rem); overflow-y:auto; padding:1rem; border:1px solid var(--border); border-radius:3px; background:var(--surface); color:var(--text); box-shadow:0 .35rem 1rem var(--shadow); }
-.parallel-panel-title { margin:0 0 .65rem; font-weight:700; }
+.parallel-language-group { border:0; padding:0; margin:0; min-inline-size:0; }
+.parallel-panel-title { margin:0 0 .65rem; padding:0; font-weight:700; }
 .parallel-panel label { display:flex; gap:.5rem; align-items:center; padding:.3rem 0; }
 .parallel-help { color:var(--text-soft); font-size:.82rem; line-height:1.35; margin:.7rem 0; }
 .parallel-actions { display:flex; justify-content:flex-end; gap:.5rem; }
@@ -105,7 +106,7 @@ main { min-height: calc(100vh - 126px); }
 .book-index { border-top: 1px solid var(--border); padding-top: 1.25rem; }
 .book-index > h1 { font-size: 2rem; font-weight: 500; margin-top: 0; }
 .testament-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; }
-.testament-grid h3 { color: var(--text-soft); font-weight: 500; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+.testament-grid h2 { color: var(--text-soft); font-size: 1.17em; font-weight: 500; border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
 .book-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .3rem 1rem; }
 .book-link { border: 0; background: transparent; color: var(--text); padding: .35rem .15rem; text-align: left; cursor: pointer; border-bottom: 1px dotted transparent; }
 .book-link:hover { color: var(--primary); border-bottom-color: var(--border); }
@@ -122,6 +123,17 @@ main { min-height: calc(100vh - 126px); }
 .scripture-column-header { display:flex; justify-content:space-between; gap:.75rem; align-items:baseline; padding-bottom:.75rem; margin-bottom:1.3rem; border-bottom:1px solid var(--border); color:var(--text-soft); }
 .scripture-column-header strong { color:var(--text); font-weight:500; }
 .scripture-lang-badge { font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; }
+.scripture-column-footer { margin-top: 3rem; padding-top: .9rem; border-top: 1px solid var(--border); color: var(--text-soft); font-size: .72rem; line-height: 1.45; }
+.scripture-column-footer p { margin: .16rem 0; }
+.edition-note-title { color: var(--text); font-size: .76rem; }
+.edition-note-title strong { font-weight: 500; }
+.edition-note-basis cite { color: var(--text); }
+.edition-note-details { margin-top: .55rem; }
+.edition-note-details summary { cursor: pointer; width: fit-content; color: var(--text); text-decoration: underline; text-decoration-thickness: .05em; text-underline-offset: .16em; }
+.edition-note-details summary:hover { color: var(--primary); }
+.edition-note-details[open] summary { margin-bottom: .45rem; }
+.edition-note-chronology, .edition-note-rights { margin-left: 1rem; }
+.edition-note-rights { max-width: 44rem; }
 .scripture-body { font-size: var(--scripture-font-size); line-height: 1.72; text-rendering: optimizeLegibility; }
 .scripture-prose { margin: 0; }
 .scripture-verse { margin: 0 0 1.05em; text-align: left; hyphens: none; }
@@ -135,7 +147,7 @@ main { min-height: calc(100vh - 126px); }
 .scripture-column em, .char-it { font-style: italic; }
 .char-bd { font-weight: 700; }
 .char-sc { font-variant: small-caps; }
-.jesus-words { color: var(--words-of-jesus); }
+.jesus-words, .melchizedek-words { color: var(--words-of-jesus); }
 .source-note, .cross-reference { display: none; }
 .chapter-nav { position: fixed; z-index: 90; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); left: max(1rem, env(safe-area-inset-left, 0px)); right: max(1rem, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; gap: 1rem; pointer-events: none; }
 .chapter-button { width: 44px; min-width: 44px; min-height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; pointer-events: auto; }
@@ -146,6 +158,8 @@ main { min-height: calc(100vh - 126px); }
 .error-view { text-align: center; }
 .site-footer { background: var(--primary); color: var(--on-primary); padding: 1.1rem; text-align: center; font-size: .88rem; }
 .site-footer p { margin: 0; }
+.site-footer a { color: inherit; }
+.site-footer a:focus-visible { outline-color: currentColor; }
 :focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
 .site-header :focus-visible { outline-color: var(--text); }
 @media (max-width: 980px) {
@@ -170,6 +184,10 @@ main { min-height: calc(100vh - 126px); }
   .scripture-column { padding: 1.5rem 1.25rem; border-left: 0; border-right: 0; margin-left: -1.25rem; margin-right: -1.25rem; box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
+  .jesus-words, .melchizedek-words { text-decoration-line: underline; text-decoration-style: dotted; text-underline-offset: .15em; }
+}
 .scripture-grid.parallel-aligned {
   grid-template-rows: repeat(var(--parallel-rows), auto);
   align-items: stretch;
@@ -191,8 +209,9 @@ main { min-height: calc(100vh - 126px); }
 .parallel-aligned .scripture-body {
   display: grid;
   grid-template-rows: subgrid;
-  grid-row: 2 / -1;
+  grid-row: 2 / -2;
 }
+.parallel-aligned .scripture-column-footer { grid-row: -2 / -1; align-self: end; }
 .parallel-verse, .parallel-preface { display: flow-root; min-width: 0; overflow-wrap: anywhere; }
 @media print {
   .site-header, .site-footer, .chapter-nav, .chapter-contents, .scripture-font-control { display:none !important; }

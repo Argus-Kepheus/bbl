@@ -1,12 +1,12 @@
 {
   "langTag": "pt-BR",
   "title": "Bíblia Argus Kepheus",
-  "skip": "Pular para a leitura",
+  "skip": "Pular para o conteúdo principal",
   "readerNav": "Navegação bíblica",
   "chapterNav": "Navegação entre capítulos",
   "book": "Livro",
   "chapter": "Capítulo",
-  "language": "Idioma",
+  "language": "Idioma da interface",
   "themeClassic": "Clássica",
   "themeDark": "Clássica escura",
   "toggleTheme": "Alternar modo escuro",
@@ -29,5 +29,12 @@
   "parallelHint": "Escolha os idiomas dos textos independentemente da interface. Selecione ao menos um; dois ou três ativam a leitura paralela.",
   "singleReading": "Leitura simples",
   "apply": "Aplicar",
-  "scriptureFontSize": "Tamanho do texto bíblico"
+  "scriptureFontSize": "Tamanho do texto bíblico",
+  "editionInformation": "Informações da edição {language}",
+  "revisionShort": "rev.",
+  "textualBasis": "Base textual",
+  "editorialDetails": "Detalhes editoriais",
+  "completeBible": "Bíblia completa",
+  "rightsPublicDomainBrazil": "Domínio público no Brasil segundo a avaliação atual do projeto.",
+  "rightsUnderReviewBrazil": "Situação de direitos no Brasil: em validação."
 }

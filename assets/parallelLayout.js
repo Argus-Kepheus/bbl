@@ -61,6 +61,7 @@ export function prepareParallelLayout(columns) {
     if (trailing.length) cells.push(cell('parallel-preface', numbers.length * 2 + 1, trailing));
     body.replaceChildren(...cells);
   }
-  // One column header, two tracks per verse (preface + verse), one trailing track.
-  return numbers.length * 2 + 2;
+  // One column header, two tracks per verse (preface + verse), one trailing track,
+  // and one shared row reserved for each column's edition footer.
+  return numbers.length * 2 + 3;
 }

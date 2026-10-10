@@ -1,22 +1,23 @@
-const BOOKS = new Set(['MAT', 'MRK', 'LUK', 'JHN', 'REV']);
+const BOOKS = new Set(['GEN', 'MAT', 'MRK', 'LUK', 'JHN', 'REV']);
+const isSpeechChapter = (book, chapter) => BOOKS.has(book) && (book !== 'GEN' || Number(chapter) === 14);
 const MARKERS = new Set(['wj', 'red', 'jesus', 'jesus-words', 'words-of-jesus', 'red-letter']);
 const TAGS = /<\/?(?:span|font|red|jesus|jesus-words|words-of-jesus)\b[^>]*>/gi;
 
 // Defense in depth for cached/legacy payloads. Wrappers are never evidence.
-export function normalizeSpeechContent(content, book) {
-  if (!BOOKS.has(book)) return content;
+export function normalizeSpeechContent(content, book, chapter) {
+  if (!isSpeechChapter(book, chapter)) return content;
   return content.flatMap(node => {
     if (typeof node === 'string') return [node.replace(TAGS, '').replaceAll('*', '')];
     if (!node || typeof node !== 'object') return [];
     const copy = { ...node };
-    if (copy.content) copy.content = normalizeSpeechContent(copy.content, book);
+    if (copy.content) copy.content = normalizeSpeechContent(copy.content, book, chapter);
     return copy.type === 'char' && MARKERS.has((copy.marker || '').toLowerCase())
       ? copy.content || [] : [copy];
   });
 }
 
-export function highlightSpeech(body, book, speech = {}) {
-  if (!BOOKS.has(book)) return;
+export function highlightSpeech(body, book, speech = {}, chapter) {
+  if (!isSpeechChapter(book, chapter)) return;
   const verses = new Map();
   let current;
   for (const fragment of body.querySelectorAll('.scripture-verse, .scripture-continuation')) {
@@ -70,7 +71,7 @@ export function highlightSpeech(body, book, speech = {}) {
     for (const part of parts) {
       replacement.append(document.createTextNode(node.data.slice(cursor, part.start)));
       const span = document.createElement('span');
-      span.className = 'jesus-words';
+      span.className = book === 'GEN' ? 'melchizedek-words' : 'jesus-words';
       span.dataset.speech = part.speech;
       span.textContent = node.data.slice(part.start, part.end);
       replacement.append(span);

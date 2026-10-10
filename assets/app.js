@@ -3,32 +3,33 @@ import { createJSONLoader } from "./jsonCache.js";
 import { prepareParallelLayout } from "./parallelLayout.js";
 import { normalizeSpeechContent, highlightSpeech } from "./wordsOfJesus.js";
 import { captureReadingPosition, restoreReadingPosition, prepareReadingFonts } from "./readingPosition.js";
-import { buildReadHash, parseRoute } from "./routing.js";
+import { buildReadHash, isLanguageCode, parseRoute } from "./routing.js";
 
-const LANGS = ["pt", "es", "en"];
+const UI_LANGS = ["pt", "es", "en"];
+const MAX_READING_LANGUAGES = 3;
 const DEFAULT_LOCATION = { book: "GEN", chapter: 1 };
 const MIN_SCRIPTURE_FONT_SIZE = 10;
 const DEFAULT_SCRIPTURE_FONT_SIZE = 20;
 const MAX_SCRIPTURE_FONT_SIZE = 40;
-const state = { uiLang: "pt", readLangs: ["pt"], theme: "classic", scriptureFontSize: DEFAULT_SCRIPTURE_FONT_SIZE, manifests: {}, locales: {} };
+const state = { uiLang: "pt", readLangs: [], readingLanguages: [], theme: "classic", scriptureFontSize: DEFAULT_SCRIPTURE_FONT_SIZE, manifests: {}, locales: {} };
 let navigationRevision = 0;
 let renderedRoute = null;
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  home: $("home-view"), readerView: $("reader-view"), error: $("error-view"), reader: $("reader"),
+  main: $("main-content"), skip: $("skip-link"), home: $("home-view"), readerView: $("reader-view"), error: $("error-view"), reader: $("reader"),
   book: $("book-select"), chapter: $("chapter-select"), language: $("language-select"), theme: $("theme-toggle"),
   title: $("book-title"), chapterTitle: $("chapter-title"), testament: $("testament-label"),
   ot: $("ot-books"), nt: $("nt-books"), prev: $("prev-chapter"), next: $("next-chapter"), continueBtn: $("continue-reading"),
-  parallel: $("parallel-switcher"), parallelApply: $("parallel-apply"), parallelSingle: $("parallel-single"), chapterNav: $("chapter-navigation"),
+  parallel: $("parallel-switcher"), parallelOptions: $("parallel-language-options"), parallelApply: $("parallel-apply"), parallelSingle: $("parallel-single"), chapterNav: $("chapter-navigation"),
   fontSlider: $("font-size-slider"), readingTools: $("reading-tools")
 };
 
 function preferredLanguage() {
   const saved = readPreference("ak-bible-language");
-  if (LANGS.includes(saved)) return saved;
+  if (UI_LANGS.includes(saved)) return saved;
   const browser = (navigator.language || "pt").slice(0,2).toLowerCase();
-  return LANGS.includes(browser) ? browser : "pt";
+  return UI_LANGS.includes(browser) ? browser : "pt";
 }
 function preferredTheme() {
   const saved = readPreference("ak-bible-theme");
@@ -58,17 +59,45 @@ function applyScriptureFontSize() {
   els.fontSlider.setAttribute("aria-valuetext", `${state.scriptureFontSize}px`);
 }
 const getJSON = createJSONLoader();
-async function ensureAssets(lang) {
-  if (!state.locales[lang]) state.locales[lang] = await getJSON(`locales/${lang}.json`);
-  if (!state.manifests[lang]) state.manifests[lang] = await getJSON(`data/${lang}/manifest.json`);
+async function loadLanguageIndex() {
+  const index=await getJSON("data/index.json");
+  state.readingLanguages=[...new Set((index.languages || []).map(item=>item.language).filter(isLanguageCode))];
+  if(!state.readingLanguages.length) throw new Error("No reading languages declared in data/index.json");
+}
+async function ensureLocale(lang) {
+  if(!UI_LANGS.includes(lang)) throw new Error(`Unsupported interface language: ${lang}`);
+  if(!state.locales[lang]) state.locales[lang]=await getJSON(`locales/${lang}.json`);
+}
+async function ensureManifest(lang) {
+  if(!state.readingLanguages.includes(lang)) throw new Error(`Unsupported reading language: ${lang}`);
+  if(!state.manifests[lang]) state.manifests[lang]=await getJSON(`data/${lang}/manifest.json`);
+}
+function defaultReadingLanguage() {
+  return state.readLangs.find(lang=>state.readingLanguages.includes(lang))
+    || (state.readingLanguages.includes(state.uiLang) ? state.uiLang : state.readingLanguages[0]);
+}
+function navigationLanguage() {
+  return state.readingLanguages.includes(state.uiLang) ? state.uiLang : defaultReadingLanguage();
 }
 function locale() { return state.locales[state.uiLang]; }
-function manifest(lang=state.uiLang) { return state.manifests[lang]; }
-function t(key, vars={}) {
-  let s = locale()?.[key] ?? key;
+function manifest(lang=defaultReadingLanguage()) { return state.manifests[lang]; }
+function renderLanguageControls() {
+  els.language.replaceChildren(...UI_LANGS.map(lang=>{
+    const option=document.createElement("option"); option.value=lang; option.textContent=lang.toUpperCase(); return option;
+  }));
+  els.parallelOptions.replaceChildren(...state.readingLanguages.map(lang=>{
+    const label=document.createElement("label");
+    const input=document.createElement("input"); input.type="checkbox"; input.name="parallel-language"; input.value=lang;
+    const text=document.createElement("span"); text.textContent=lang.toUpperCase();
+    label.append(input,document.createTextNode(" "),text); return label;
+  }));
+}
+function translate(lang,key,vars={}) {
+  let s = state.locales[lang]?.[key] ?? key;
   for (const [k,v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
   return s;
 }
+function t(key, vars={}) { return translate(state.uiLang,key,vars); }
 function applyLocale() {
   document.documentElement.lang = locale().langTag;
   document.title = locale().title;
@@ -85,10 +114,10 @@ function applyTheme() {
 function route() {
   return parseRoute(location.hash);
 }
-function bookByCode(code,lang=state.uiLang) { return manifest(lang)?.books.find(b => b.code === code); }
+function bookByCode(code,lang=defaultReadingLanguage()) { return manifest(lang)?.books.find(b => b.code === code); }
 function fillBookSelect(selected) {
   els.book.innerHTML = "";
-  for (const b of manifest().books) {
+  for (const b of manifest(navigationLanguage()).books) {
     const o = document.createElement("option"); o.value=b.code; o.textContent=b.name; o.selected=b.code===selected; els.book.append(o);
   }
 }
@@ -98,7 +127,7 @@ function fillChapterSelect(book, selected) {
 }
 function renderBookIndex() {
   els.ot.innerHTML = ""; els.nt.innerHTML = "";
-  for (const b of manifest().books) {
+  for (const b of manifest(navigationLanguage()).books) {
     const btn=document.createElement("button"); btn.className="book-link"; btn.type="button"; btn.textContent=b.name; btn.dataset.book=b.code;
     btn.addEventListener("click",()=>navigateTo(b.code,1));
     (b.testament === "OT" ? els.ot : els.nt).append(btn);
@@ -110,7 +139,7 @@ function setVisible(view) {
   els.chapterNav.hidden=view!=="reader";
   document.body.classList.toggle("reading-active",view==="reader");
 }
-function navigateTo(book, chapter, langs=state.readLangs, uiLang=route().uiLang || state.uiLang) {
+function navigateTo(book, chapter, langs=state.readLangs, uiLang=state.uiLang) {
   location.hash=buildReadHash(langs,book,chapter,uiLang);
 }
 function flattenText(node) {
@@ -187,7 +216,8 @@ function renderNode(node, container, chapterNumber, lang) {
   }
 }
 async function setUiLanguage(lang) {
-  await ensureAssets(lang);
+  await ensureLocale(lang);
+  if(state.readingLanguages.includes(lang)) await ensureManifest(lang);
   applyUiLanguage(lang);
 }
 function applyUiLanguage(lang) {
@@ -207,52 +237,107 @@ function selectedParallelLanguages() {
   return [...state.readLangs.filter(lang=>checked.includes(lang)),...checked.filter(lang=>!state.readLangs.includes(lang))];
 }
 async function showHome(position=null) {
-  state.readLangs=[state.uiLang]; setParallelChecks(state.readLangs); setVisible("home");
-  fillBookSelect(manifest().books[0]?.code); fillChapterSelect(manifest().books[0],1);
-  const last=readLastLocation(state.uiLang,manifest().books);
+  const readingLang=defaultReadingLanguage();
+  state.readLangs=[readingLang];
+  await Promise.all([ensureManifest(readingLang),ensureManifest(navigationLanguage())]);
+  setParallelChecks(state.readLangs); setVisible("home");
+  const navigationManifest=manifest(navigationLanguage());
+  fillBookSelect(navigationManifest.books[0]?.code); fillChapterSelect(navigationManifest.books[0],1);
+  const last=readLastLocation(readingLang,manifest(readingLang).books);
   els.continueBtn.textContent = last ? t("continueReading") : t("startReading");
-  els.continueBtn.onclick=()=>navigateTo(last?.book||DEFAULT_LOCATION.book,last?.chapter||DEFAULT_LOCATION.chapter,[state.uiLang]);
+  els.continueBtn.onclick=()=>navigateTo(last?.book||DEFAULT_LOCATION.book,last?.chapter||DEFAULT_LOCATION.chapter,[readingLang]);
   renderedRoute={view:"home"};
   if(position) restoreReadingPosition(els.home,position);
   else window.scrollTo({top:0,behavior:"instant"});
 }
 function neighboring(book,chapter,delta) {
-  const books=manifest().books; let bi=books.findIndex(b=>b.code===book); if(bi<0)return null;
+  const books=manifest(state.readLangs[0] || defaultReadingLanguage()).books; let bi=books.findIndex(b=>b.code===book); if(bi<0)return null;
   let ch=chapter+delta;
   if(ch>=1 && ch<=books[bi].chapters)return {book,chapter:ch};
   bi+=delta>0?1:-1; if(bi<0||bi>=books.length)return null;
   const nb=books[bi]; return {book:nb.code,chapter:delta>0?1:nb.chapters};
 }
-async function renderLanguageColumn(lang,bookCode,chapter) {
-  await ensureAssets(lang);
+function formatYearRange(value) {
+  if(!value || value.from==null) return "";
+  return value.to!=null && value.to!==value.from ? `${value.from}–${value.to}` : String(value.from);
+}
+function renderEditionFooter(lang,uiLang) {
+  const edition=manifest(lang);
+  const source=edition?.source_basis_metadata;
+  if(!source) return null;
+  const footer=document.createElement("footer"); footer.className="scripture-column-footer";
+  footer.setAttribute("aria-label",translate(uiLang,"editionInformation",{language:lang.toUpperCase()}));
+
+  const title=document.createElement("p"); title.className="edition-note-title";
+  const strong=document.createElement("strong"); strong.textContent=`${lang.toUpperCase()} · Argus Kepheus`;
+  title.append(strong,document.createTextNode(` · ${translate(uiLang,"revisionShort")} ${edition.revision}`));
+
+  const basis=document.createElement("p"); basis.className="edition-note-basis";
+  const basisLabel=document.createElement("span"); basisLabel.textContent=`${translate(uiLang,"textualBasis")}: `;
+  const basisName=document.createElement("cite"); basisName.textContent=source.title;
+  basis.append(basisLabel,basisName);
+
+  const details=document.createElement("details"); details.className="edition-note-details";
+  const summary=document.createElement("summary"); summary.textContent=translate(uiLang,"editorialDetails");
+  details.append(summary);
+
+  const publication=source.publication || {};
+  const chronologyParts=[];
+  const project=formatYearRange(publication.project_interval);
+  const complete=formatYearRange(publication.complete_bible);
+  if(project) chronologyParts.push(project);
+  if(complete) chronologyParts.push(`${translate(uiLang,"completeBible")}: ${complete}`);
+  if(chronologyParts.length) {
+    const chronology=document.createElement("p"); chronology.className="edition-note-chronology";
+    chronology.textContent=chronologyParts.join(" · ");
+    details.append(chronology);
+  }
+
+  const rights=document.createElement("p"); rights.className="edition-note-rights";
+  rights.textContent=source.rights_br?.status==="public-domain-currently"
+    ? translate(uiLang,"rightsPublicDomainBrazil")
+    : translate(uiLang,"rightsUnderReviewBrazil");
+  details.append(rights);
+
+  footer.append(title,basis,details);
+  return footer;
+}
+async function renderLanguageColumn(lang,bookCode,chapter,uiLang) {
+  await ensureManifest(lang);
   const b=bookByCode(bookCode,lang);
   const article=document.createElement("article"); article.className="scripture-column"; article.dataset.language=lang;
-  article.lang=state.locales[lang].langTag;
+  article.lang=lang;
   const header=document.createElement("header"); header.className="scripture-column-header";
   const label=document.createElement("span"); label.className="scripture-lang-badge"; label.textContent=lang.toUpperCase();
   const title=document.createElement("strong"); title.textContent=b ? `${b.name} ${chapter}` : `${bookCode} ${chapter}`;
   header.append(label,title); article.append(header);
   if(!b || chapter<1 || chapter>b.chapters) {
-    const p=document.createElement("p"); p.textContent=state.locales[lang]?.loadErrorCopy || t("loadErrorCopy"); article.append(p); return article;
+    const p=document.createElement("p"); p.textContent=translate(uiLang,"loadErrorCopy"); article.append(p); return article;
   }
   const data=await getJSON(`data/${lang}/books/${bookCode}/${chapter}.json`);
   const body=document.createElement("div"); body.className="scripture-body";
-  for(const node of normalizeSpeechContent(data.content,bookCode)) renderNode(node,body,chapter,lang);
-  highlightSpeech(body,bookCode,data.speech);
+  for(const node of normalizeSpeechContent(data.content,bookCode,chapter)) renderNode(node,body,chapter,lang);
+  highlightSpeech(body,bookCode,data.speech,chapter);
   article.append(body);
+  const editionFooter=renderEditionFooter(lang,uiLang);
+  if(editionFooter) article.append(editionFooter);
   return article;
 }
 async function showReader(bookCode,chapter,langs,uiLang,revision) {
-  const readLangs=[...new Set(langs)].filter(x=>LANGS.includes(x)).slice(0,3);
-  if(!readLangs.length) readLangs.push(state.uiLang);
+  const readLangs=[...new Set(langs)].filter(x=>state.readingLanguages.includes(x)).slice(0,MAX_READING_LANGUAGES);
+  if(!readLangs.length) readLangs.push(defaultReadingLanguage());
   try {
-    await Promise.all([...new Set([...readLangs,uiLang])].map(ensureAssets));
+    const displayLang=state.readingLanguages.includes(uiLang) ? uiLang : readLangs[0];
+    await Promise.all([
+      ensureLocale(uiLang),
+      ...[...new Set([...readLangs,displayLang])].map(ensureManifest)
+    ]);
     if(revision!==navigationRevision) return;
-    const book=bookByCode(bookCode,uiLang);
+    const book=bookByCode(bookCode,displayLang);
     if(!book || chapter<1 || chapter>book.chapters) { renderedRoute=null; setVisible("error"); return; }
     const preserve=renderedRoute?.view==="reader" && renderedRoute.book===bookCode && renderedRoute.chapter===chapter;
     const [cols]=await Promise.all([
-      Promise.all(readLangs.map(lang=>renderLanguageColumn(lang,bookCode,chapter))),
+      Promise.all(readLangs.map(lang=>renderLanguageColumn(lang,bookCode,chapter,uiLang))),
       preserve ? prepareReadingFonts(state.scriptureFontSize) : Promise.resolve()
     ]);
     if(revision!==navigationRevision) return;
@@ -278,7 +363,7 @@ async function showReader(bookCode,chapter,langs,uiLang,revision) {
     els.title.textContent=book.name; els.chapterTitle.textContent=t("chapterLabel",{n:chapter}); els.testament.textContent=book.testament==="OT"?t("oldTestament"):t("newTestament");
     const prev=neighboring(bookCode,chapter,-1), next=neighboring(bookCode,chapter,1);
     els.prev.disabled=!prev; els.next.disabled=!next; els.prev.onclick=()=>prev&&navigateTo(prev.book,prev.chapter); els.next.onclick=()=>next&&navigateTo(next.book,next.chapter);
-    writePreference(`ak-bible-last-${state.uiLang}`,JSON.stringify({book:bookCode,chapter,langs:state.readLangs}));
+    writePreference(`ak-bible-last-${state.readLangs[0]}`,JSON.stringify({book:bookCode,chapter,langs:state.readLangs}));
     writePreference("ak-bible-parallel-languages",JSON.stringify(state.readLangs));
     setVisible("reader"); renderedRoute={view:"reader",book:bookCode,chapter};
     if(position) restoreReadingPosition(els.reader,position);
@@ -291,23 +376,37 @@ async function showReader(bookCode,chapter,langs,uiLang,revision) {
 async function handleRoute() {
   const revision=++navigationRevision;
   const r=route();
-  if(r.view==="reader") await showReader(r.book,r.chapter,r.langs,r.uiLang,revision); else await showHome();
+  if(r.view!=="reader") { await showHome(); return; }
+  const uiLang=r.uiLang || (UI_LANGS.includes(r.langs[0]) ? r.langs[0] : state.uiLang);
+  if(!UI_LANGS.includes(uiLang) || r.langs.some(lang=>!state.readingLanguages.includes(lang))) {
+    await showHome(); return;
+  }
+  await showReader(r.book,r.chapter,r.langs,uiLang,revision);
 }
 async function init() {
   state.theme=preferredTheme(); applyTheme();
   state.scriptureFontSize=preferredScriptureFontSize(); applyScriptureFontSize();
-  await setUiLanguage(preferredLanguage());
+  await loadLanguageIndex();
+  renderLanguageControls();
+  const initialUiLang=preferredLanguage();
+  state.readLangs=[state.readingLanguages.includes(initialUiLang) ? initialUiLang : state.readingLanguages[0]];
+  await ensureManifest(state.readLangs[0]);
+  await setUiLanguage(initialUiLang);
+  els.skip.addEventListener("click",event=>{
+    event.preventDefault();
+    els.main.focus({preventScroll:true});
+    els.main.scrollIntoView({block:"start",behavior:"instant"});
+  });
   els.language.addEventListener("change",async()=>{
     const lang=els.language.value; const r=route();
     if(r.view==="reader") {
-      const langs=r.langs.length===1 ? [lang] : r.langs;
-      navigateTo(r.book,r.chapter,langs,lang);
+      navigateTo(r.book,r.chapter,r.langs,lang);
     } else {
       const revision=++navigationRevision;
-      await ensureAssets(lang);
-      if(revision!==navigationRevision) return;
       const position=captureReadingPosition(els.home);
-      applyUiLanguage(lang); await showHome(position);
+      await setUiLanguage(lang);
+      if(revision!==navigationRevision) return;
+      await showHome(position);
     }
   });
   els.theme.addEventListener("click",()=>{state.theme=state.theme==="classic"?"classic-dark":"classic";applyTheme();});
@@ -318,18 +417,20 @@ async function init() {
   els.book.addEventListener("change",()=>navigateTo(els.book.value,1));
   els.chapter.addEventListener("change",()=>navigateTo(els.book.value,Number(els.chapter.value)));
   els.parallel.addEventListener("change",updateParallelSelection);
-  els.parallelApply.addEventListener("click",()=>{
+  els.parallelApply.addEventListener("click",async()=>{
     const r=route(); const langs=selectedParallelLanguages();
     if(!langs.length) return;
     els.parallel.open=false;
     if(r.view==="reader") navigateTo(r.book,r.chapter,langs);
     else {
-      const last=readLastLocation(state.uiLang,manifest().books) || DEFAULT_LOCATION;
+      const primary=langs[0];
+      await ensureManifest(primary);
+      const last=readLastLocation(primary,manifest(primary).books) || DEFAULT_LOCATION;
       navigateTo(last.book,last.chapter,langs);
     }
   });
   els.parallelSingle.addEventListener("click",()=>{
-    const r=route(); state.readLangs=[state.uiLang]; setParallelChecks(state.readLangs); els.parallel.open=false;
+    const r=route(); state.readLangs=[state.readLangs[0] || defaultReadingLanguage()]; setParallelChecks(state.readLangs); els.parallel.open=false;
     if(r.view==="reader") navigateTo(r.book,r.chapter,state.readLangs);
   });
   document.addEventListener("keydown",event=>{
