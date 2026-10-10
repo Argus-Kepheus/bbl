@@ -18,7 +18,7 @@ let renderedRoute = null;
 const $ = (id) => document.getElementById(id);
 const els = {
   main: $("main-content"), skip: $("skip-link"), home: $("home-view"), readerView: $("reader-view"), error: $("error-view"), reader: $("reader"),
-  book: $("book-select"), chapter: $("chapter-select"), language: $("language-select"), theme: $("theme-toggle"),
+  book: $("book-select"), chapter: $("chapter-select"), language: $("language-select"), readingLanguage: $("reading-language-select"), theme: $("theme-toggle"),
   title: $("book-title"), chapterTitle: $("chapter-title"), testament: $("testament-label"),
   ot: $("ot-books"), nt: $("nt-books"), prev: $("prev-chapter"), next: $("next-chapter"), continueBtn: $("continue-reading"),
   parallel: $("parallel-switcher"), parallelOptions: $("parallel-language-options"), parallelApply: $("parallel-apply"), parallelSingle: $("parallel-single"), chapterNav: $("chapter-navigation"),
@@ -82,6 +82,9 @@ function navigationLanguage() {
 function locale() { return state.locales[state.uiLang]; }
 function manifest(lang=defaultReadingLanguage()) { return state.manifests[lang]; }
 function renderLanguageControls() {
+  els.readingLanguage.replaceChildren(...state.readingLanguages.map(lang=>{
+    const option=document.createElement("option"); option.value=lang; option.textContent=lang.toUpperCase(); return option;
+  }));
   els.language.replaceChildren(...UI_LANGS.map(lang=>{
     const option=document.createElement("option"); option.value=lang; option.textContent=lang.toUpperCase(); return option;
   }));
@@ -240,7 +243,7 @@ async function showHome(position=null) {
   const readingLang=defaultReadingLanguage();
   state.readLangs=[readingLang];
   await Promise.all([ensureManifest(readingLang),ensureManifest(navigationLanguage())]);
-  setParallelChecks(state.readLangs); setVisible("home");
+  setParallelChecks(state.readLangs); els.readingLanguage.value=readingLang; setVisible("home");
   const navigationManifest=manifest(navigationLanguage());
   fillBookSelect(navigationManifest.books[0]?.code); fillChapterSelect(navigationManifest.books[0],1);
   const last=readLastLocation(readingLang,manifest(readingLang).books);
@@ -345,6 +348,8 @@ async function showReader(bookCode,chapter,langs,uiLang,revision) {
     // performed while the next translation was loading.
     const position=preserve ? captureReadingPosition(els.reader,readLangs[0]) : null;
     state.readLangs=readLangs;
+    els.readingLanguage.value=readLangs[0];
+    writePreference("ak-bible-reading-language",readLangs[0]);
     applyUiLanguage(uiLang);
     fillBookSelect(bookCode); fillChapterSelect(book,chapter); setParallelChecks(readLangs);
     const parallel=cols.length>1;
@@ -389,13 +394,32 @@ async function init() {
   await loadLanguageIndex();
   renderLanguageControls();
   const initialUiLang=preferredLanguage();
-  state.readLangs=[state.readingLanguages.includes(initialUiLang) ? initialUiLang : state.readingLanguages[0]];
+  const savedReadingLang=readPreference("ak-bible-reading-language");
+  state.readLangs=[state.readingLanguages.includes(savedReadingLang) ? savedReadingLang
+    : (state.readingLanguages.includes(initialUiLang) ? initialUiLang : state.readingLanguages[0])];
   await ensureManifest(state.readLangs[0]);
   await setUiLanguage(initialUiLang);
   els.skip.addEventListener("click",event=>{
     event.preventDefault();
     els.main.focus({preventScroll:true});
     els.main.scrollIntoView({block:"start",behavior:"instant"});
+  });
+  els.readingLanguage.addEventListener("change",async()=>{
+    const lang=els.readingLanguage.value;
+    if(!state.readingLanguages.includes(lang)) return;
+    const r=route();
+    if(r.view==="reader") {
+      // A deliberate choice of one text language returns to single-column reading.
+      navigateTo(r.book,r.chapter,[lang],state.uiLang);
+    } else {
+      const revision=++navigationRevision;
+      const position=captureReadingPosition(els.home);
+      await ensureManifest(lang);
+      if(revision!==navigationRevision) return;
+      state.readLangs=[lang];
+      writePreference("ak-bible-reading-language",lang);
+      await showHome(position);
+    }
   });
   els.language.addEventListener("change",async()=>{
     const lang=els.language.value; const r=route();

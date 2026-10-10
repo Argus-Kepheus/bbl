@@ -34,7 +34,13 @@
   <header class="site-header">
     <div class="header-inner">
       <nav class="reader-controls" aria-label="Bible navigation" data-i18n-aria="readerNav">
-        <label class="control-group">
+        <a id="home-link" class="home-link" href="#home" data-i18n-aria="contents" data-i18n-title="contents" aria-label="Índice" title="Índice">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 10 9-7 9 7"></path>
+            <path d="M5 9v12h14V9M10 21v-7h4v7"></path>
+          </svg>
+        </a>
+        <label class="control-group book-control">
           <span class="sr-only" data-i18n="book">Livro</span>
           <select id="book-select" data-i18n-aria="book" aria-label="Livro"></select>
         </label>
@@ -45,7 +51,11 @@
       </nav>
       <div class="site-switchers">
         <label class="switcher-label">
-          <span class="sr-only" data-i18n="language">Idioma</span>
+          <span class="switcher-caption" data-i18n="readingLanguageShort">Texto</span>
+          <select id="reading-language-select" class="compact-select" data-i18n-aria="readingLanguage" aria-label="Idioma do texto bíblico"></select>
+        </label>
+        <label class="switcher-label">
+          <span class="switcher-caption" data-i18n="interfaceLanguageShort">Interface</span>
           <select id="language-select" class="compact-select" data-i18n-aria="language" aria-label="Idioma"></select>
         </label>
         <details id="parallel-switcher" class="parallel-switcher">
@@ -101,9 +111,6 @@
           <p id="chapter-title" class="chapter-title"></p>
         </div>
         <div id="reader" class="scripture-grid" tabindex="-1"></div>
-        <div class="chapter-contents">
-          <a href="#home" class="contents-link" data-i18n="contents">Índice</a>
-        </div>
       </div>
     </section>
 
