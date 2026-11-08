@@ -137,7 +137,7 @@ function renderBookIndex() {
 function setVisible(view) {
   els.home.hidden=view!=="home"; els.readerView.hidden=view!=="reader"; els.error.hidden=view!=="error";
   els.readingTools.hidden=view!=="reader";
-  els.chapterNav.hidden=view!=="reader";
+  els.prev.hidden=view!=="reader"; els.next.hidden=view!=="reader";
   document.body.classList.toggle("reading-active",view==="reader");
 }
 function navigateTo(book, chapter, langs=state.readLangs, uiLang=state.uiLang) {
@@ -320,8 +320,10 @@ async function renderLanguageColumn(lang,bookCode,chapter,uiLang) {
   }
   const data=await getJSON(`data/${lang}/books/${bookCode}/${chapter}.json`);
   const body=document.createElement("div"); body.className="scripture-body";
-  for(const node of normalizeSpeechContent(data.content,bookCode,chapter)) renderNode(node,body,chapter,lang);
-  highlightSpeech(body,bookCode,data.speech,chapter);
+  for(const node of normalizeSpeechContent(data.content,data.speech_normalization)) renderNode(node,body,chapter,lang);
+  highlightSpeech(body,bookCode,data.speech,chapter,{
+    jesus:translate(uiLang,"speechJesus"), jehovah:translate(uiLang,"speechJehovah"), melchizedek:translate(uiLang,"speechMelchizedek")
+  },data.ambiguity);
   article.append(body);
   const editionFooter=renderEditionFooter(lang,uiLang);
   if(editionFooter) article.append(editionFooter);
