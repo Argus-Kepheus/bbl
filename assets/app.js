@@ -226,6 +226,7 @@ function applyUiLanguage(lang) {
   applyLocale(); renderBookIndex();
 }
 function setParallelChecks(langs) {
+  els.parallel.dataset.active=String(langs.length>1);
   document.querySelectorAll('input[name="parallel-language"]').forEach(cb=>{
     const isBase=cb.value===state.uiLang;
     cb.disabled=isBase;
